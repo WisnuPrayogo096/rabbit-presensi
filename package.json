@@ -1,0 +1,29 @@
+{
+  "name": "schedule-presensi",
+  "version": "1.0.0",
+  "description": "Bot Telegram untuk sistem absensi dengan scheduler",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "absensi",
+    "attendance",
+    "rabbitmq"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "node-telegram-bot-api": "^0.66.0",
+    "amqplib": "^0.10.8",
+    "node-fetch": "^3.3.2",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
