@@ -1,6 +1,7 @@
 // handlers/command.handler.js
 import { ApiService } from "../services/api.service.js";
 import { RabbitMQService } from "../services/rabbitmq.service.js";
+import { dbService } from "../services/database.service.js";
 import { MessageFormatter } from "../utils/formatter.js";
 import { DateHelper } from "../utils/date.js";
 
@@ -11,6 +12,17 @@ export class CommandHandler {
   }
 
   /**
+   * Helper: kirim pesan ke Telegram dengan error handling
+   */
+  async _sendMessage(chatId, text, options = {}) {
+    try {
+      await this.bot.sendMessage(chatId, text, options);
+    } catch (err) {
+      console.error(`Gagal mengirim pesan ke chatId ${chatId}:`, err.message);
+    }
+  }
+
+  /**
    * Handler untuk command /login
    */
   async handleLogin(msg, match) {
@@ -18,19 +30,19 @@ export class CommandHandler {
     const tgl_lahir = match[1];
     const password = match[2];
 
-    await this.bot.sendMessage(chatId, "🔐 Sedang mencoba login...");
+    await this._sendMessage(chatId, "🔐 Sedang mencoba login...");
 
     try {
       const userData = await ApiService.login(tgl_lahir, password);
-      this.sessionService.set(chatId, userData, this.bot);
+      this.sessionService.set(chatId, userData);
 
-      await this.bot.sendMessage(
+      await this._sendMessage(
         chatId,
         MessageFormatter.formatLoginSuccess(userData),
         { parse_mode: "Markdown" }
       );
     } catch (err) {
-      await this.bot.sendMessage(chatId, `❌ Login gagal: ${err.message}`);
+      await this._sendMessage(chatId, `❌ Login gagal: ${err.message}`);
     }
   }
 
@@ -42,20 +54,20 @@ export class CommandHandler {
     const session = this.sessionService.get(chatId);
 
     if (!session?.token) {
-      await this.bot.sendMessage(
+      await this._sendMessage(
         chatId,
         "❌ Anda belum login. Tidak ada sesi yang perlu di-logout."
       );
       return;
     }
 
-    await this.bot.sendMessage(chatId, "🔓 Sedang logout...");
+    await this._sendMessage(chatId, "🔓 Sedang logout...");
 
     try {
       await ApiService.logout(session.token);
       this.sessionService.delete(chatId);
 
-      await this.bot.sendMessage(
+      await this._sendMessage(
         chatId,
         MessageFormatter.formatLogoutSuccess(),
         { parse_mode: "Markdown" }
@@ -63,7 +75,7 @@ export class CommandHandler {
     } catch (err) {
       // Tetap hapus sesi lokal meskipun API error
       this.sessionService.delete(chatId);
-      await this.bot.sendMessage(
+      await this._sendMessage(
         chatId,
         `⚠️ Logout dari server gagal, tapi sesi lokal telah dihapus.\nError: ${err.message}`
       );
@@ -78,7 +90,7 @@ export class CommandHandler {
     const session = this.sessionService.get(chatId);
 
     if (!session?.token) {
-      await this.bot.sendMessage(
+      await this._sendMessage(
         chatId,
         "❌ Anda belum login. Silakan login terlebih dahulu:\n`/login YYYY-MM-DD password`",
         { parse_mode: "Markdown" }
@@ -88,13 +100,13 @@ export class CommandHandler {
 
     try {
       const data = await ApiService.getMesinPresensi(session.token);
-      await this.bot.sendMessage(
+      await this._sendMessage(
         chatId,
         MessageFormatter.formatMesinPresensi(data),
         { parse_mode: "Markdown" }
       );
     } catch (err) {
-      await this.bot.sendMessage(
+      await this._sendMessage(
         chatId,
         `❌ Gagal mengambil data mesin presensi: ${err.message}`
       );
@@ -109,7 +121,7 @@ export class CommandHandler {
     const session = this.sessionService.get(chatId);
 
     if (!session?.token) {
-      await this.bot.sendMessage(
+      await this._sendMessage(
         chatId,
         "❌ Anda belum login. Silakan login terlebih dahulu:\n`/login YYYY-MM-DD password`",
         { parse_mode: "Markdown" }
@@ -125,7 +137,7 @@ export class CommandHandler {
     const scheduledAt = DateHelper.makeDateWIB(dateStr, timeStr);
 
     if (DateHelper.isPastTime(scheduledAt)) {
-      await this.bot.sendMessage(
+      await this._sendMessage(
         chatId,
         "⚠️ Waktu yang Anda masukkan sudah lewat. Gunakan waktu di masa depan."
       );
@@ -133,11 +145,13 @@ export class CommandHandler {
     }
 
     const delaySeconds = DateHelper.calculateDelaySeconds(scheduledAt);
+    const scheduleId = Date.now().toString();
 
     const task = {
       type: "fp-presensi",
       chatId,
       token: session.token,
+      scheduleId,
       requestBody: {
         id_fp_finger_mesin: fpId,
         status: status,
@@ -148,7 +162,15 @@ export class CommandHandler {
       },
     };
 
-    await this.bot.sendMessage(
+    dbService.addSchedule(chatId, {
+      id: scheduleId,
+      dateStr,
+      timeStr,
+      fpId,
+      status,
+    });
+
+    await this._sendMessage(
       chatId,
       MessageFormatter.formatAbsenScheduled(dateStr, timeStr, fpId, status),
       { parse_mode: "Markdown" }
@@ -157,15 +179,41 @@ export class CommandHandler {
     const success = await RabbitMQService.sendDelayedTask(task, delaySeconds);
 
     if (!success) {
-      await this.bot.sendMessage(
+      await this._sendMessage(
         chatId,
         "⚠️ RabbitMQ tidak tersedia. Absensi akan dicoba langsung saat waktu tiba (fallback mode)."
       );
-      // Fallback: gunakan setTimeout
-      setTimeout(async () => {
-        await this.processAbsenTask(task);
+      // Fallback: gunakan setTimeout (wrapped with .catch to prevent unhandled rejection)
+      setTimeout(() => {
+        this.processAbsenTask(task).catch((err) => {
+          console.error("Fallback processAbsenTask error:", err.message);
+        });
       }, delaySeconds * 1000);
     }
+  }
+
+  /**
+   * Handler untuk command /jadwal
+   */
+  async handleJadwal(msg) {
+    const chatId = msg.chat.id;
+    const session = this.sessionService.get(chatId);
+
+    if (!session?.token) {
+      await this._sendMessage(
+        chatId,
+        "❌ Anda belum login. Silakan login terlebih dahulu:\n`/login YYYY-MM-DD password`",
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    const schedules = await dbService.getSchedulesByChatId(chatId);
+    await this._sendMessage(
+      chatId,
+      MessageFormatter.formatJadwalList(schedules),
+      { parse_mode: "Markdown" }
+    );
   }
 
   /**
@@ -173,7 +221,7 @@ export class CommandHandler {
    */
   async handleHelp(msg) {
     const chatId = msg.chat.id;
-    await this.bot.sendMessage(chatId, MessageFormatter.formatHelp(), {
+    await this._sendMessage(chatId, MessageFormatter.formatHelp(), {
       parse_mode: "Markdown",
     });
   }
@@ -182,29 +230,67 @@ export class CommandHandler {
    * Proses task absensi (dipanggil dari consumer atau fallback)
    */
   async processAbsenTask(task) {
-    const { chatId, token, requestBody } = task;
+    const { chatId, token, requestBody, scheduleId } = task;
 
     if (!token) {
-      await this.bot.sendMessage(
+      await this._sendMessage(
         chatId,
         "❌ Token tidak tersedia. Silakan login ulang dengan /login"
       );
+      dbService.removeSchedule(scheduleId);
       return;
     }
 
-    try {
-      const data = await ApiService.createFpPresensi(token, requestBody);
-      await this.bot.sendMessage(
-        chatId,
-        MessageFormatter.formatAbsenSuccess(data),
-        { parse_mode: "Markdown" }
-      );
-    } catch (err) {
-      await this.bot.sendMessage(
-        chatId,
-        MessageFormatter.formatAbsenError(err.message),
-        { parse_mode: "Markdown" }
-      );
+    const maxRetries = 3;
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const data = await ApiService.createFpPresensi(token, requestBody);
+        await this._sendMessage(
+          chatId,
+          MessageFormatter.formatAbsenSuccess(data),
+          { parse_mode: "Markdown" }
+        );
+        dbService.removeSchedule(scheduleId);
+        return; // Success — exit
+      } catch (err) {
+        lastError = err;
+        
+        // Handle 401 Unauthorized explicitly
+        if (err.message.includes("HTTP 401")) {
+          console.error("Token expired untuk chatId:", chatId);
+          await this._sendMessage(
+            chatId,
+            "⚠️ *Sesi Berakhir*\n\nToken login Anda sudah tidak valid (Expired).\nSilakan lakukan `/login` kembali sebelum melakukan absen.",
+            { parse_mode: "Markdown" }
+          );
+          this.sessionService.delete(chatId);
+          dbService.removeSchedule(scheduleId);
+          return;
+        }
+
+        console.error(
+          `✗ Attempt ${attempt}/${maxRetries} gagal untuk fp-presensi:`,
+          err.message
+        );
+
+        if (attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+          console.log(`⏳ Retry dalam ${delay / 1000}s...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
     }
+
+    // All retries exhausted
+    await this._sendMessage(
+      chatId,
+      MessageFormatter.formatAbsenError(
+        `Gagal setelah ${maxRetries} percobaan: ${lastError?.message || "Unknown error"}`
+      ),
+      { parse_mode: "Markdown" }
+    );
+    dbService.removeSchedule(scheduleId);
   }
 }

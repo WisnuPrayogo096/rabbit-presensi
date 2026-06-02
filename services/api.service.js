@@ -3,10 +3,35 @@ import fetch from "node-fetch";
 import { config } from "../config.js";
 
 const BASE_URL = config.api.baseUrl;
+const REQUEST_TIMEOUT_MS = 30000; // 30 seconds
 
 export class ApiService {
+  /**
+   * Helper: fetch with timeout and error wrapping
+   */
+  static async _fetchWithTimeout(url, options = {}) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+      const res = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      return res;
+    } catch (error) {
+      if (error.name === "AbortError") {
+        throw new Error(`Request timeout setelah ${REQUEST_TIMEOUT_MS / 1000}s: ${url}`);
+      }
+      // Network errors (ECONNREFUSED, ETIMEDOUT, ECONNRESET, etc.)
+      throw new Error(`Network error ke ${url}: ${error.message}`);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
   static async login(tgl_lahir, password) {
-    const res = await fetch(`${BASE_URL}/api/login`, {
+    const res = await this._fetchWithTimeout(`${BASE_URL}/api/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tgl_lahir, password }),
@@ -28,7 +53,7 @@ export class ApiService {
   }
 
   static async logout(token) {
-    const res = await fetch(`${BASE_URL}/api/logout`, {
+    const res = await this._fetchWithTimeout(`${BASE_URL}/api/logout`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -46,7 +71,7 @@ export class ApiService {
   }
 
   static async getMesinPresensi(token) {
-    const res = await fetch(`${BASE_URL}/api/mesin-presensi`, {
+    const res = await this._fetchWithTimeout(`${BASE_URL}/api/mesin-presensi`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
@@ -59,7 +84,7 @@ export class ApiService {
   }
 
   static async createFpPresensi(token, requestBody) {
-    const res = await fetch(`${BASE_URL}/api/fp-presensi/create`, {
+    const res = await this._fetchWithTimeout(`${BASE_URL}/api/fp-presensi/create`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -68,12 +93,18 @@ export class ApiService {
       body: JSON.stringify(requestBody),
     });
 
-    const data = await res.json();
-
     if (!res.ok) {
-      throw new Error(JSON.stringify(data, null, 2));
+      let errorMsg = `HTTP ${res.status}`;
+      try {
+        const data = await res.json();
+        errorMsg = JSON.stringify(data, null, 2);
+      } catch (e) {
+        errorMsg = await res.text();
+      }
+      throw new Error(errorMsg);
     }
 
-    return data;
+    return res.json();
   }
 }
+

@@ -18,10 +18,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "node-telegram-bot-api": "^0.66.0",
     "amqplib": "^0.10.8",
+    "dotenv": "^16.3.1",
     "node-fetch": "^3.3.2",
-    "dotenv": "^16.3.1"
+    "node-telegram-bot-api": "^0.66.0",
+    "sqlite3": "^6.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

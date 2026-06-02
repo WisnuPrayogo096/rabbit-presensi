@@ -34,33 +34,59 @@ bot.onText(
   (msg, match) => commandHandler.handleAbsen(msg, match)
 );
 
+// /jadwal
+bot.onText(/^\/jadwal$/, (msg) => commandHandler.handleJadwal(msg));
+
 // ============ RABBITMQ CONSUMER ============
 
-async function startConsumer() {
-  try {
-    await RabbitMQService.setupConsumer(async (task) => {
-      if (task.type === "fp-presensi") {
-        await commandHandler.processAbsenTask(task);
-      } else {
-        console.log("Unknown task type:", task.type);
+async function startConsumer(maxRetries = 5) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await RabbitMQService.setupConsumer(async (task) => {
+        if (task.type === "fp-presensi") {
+          await commandHandler.processAbsenTask(task);
+        } else {
+          console.log("Unknown task type:", task.type);
+        }
+      });
+      return; // Connected successfully
+    } catch (error) {
+      console.error(
+        `✗ Consumer attempt ${attempt}/${maxRetries} gagal:`,
+        error.message
+      );
+
+      if (attempt < maxRetries) {
+        const delay = Math.min(2000 * Math.pow(2, attempt), 30000);
+        console.log(`⏳ Retry consumer dalam ${delay / 1000}s...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
-    });
-  } catch (error) {
-    console.error("✗ Consumer tidak dapat dijalankan:", error.message);
-    console.log(
-      "⚠️  Bot tetap berjalan tanpa RabbitMQ consumer (fallback mode)"
-    );
+    }
   }
+
+  console.log(
+    "⚠️  Bot tetap berjalan tanpa RabbitMQ consumer (fallback mode)"
+  );
 }
 
 // ============ ERROR HANDLERS ============
 
 bot.on("error", (error) => {
-  console.error("❌ Bot error:", error);
+  console.error("❌ Bot error:", error.message);
 });
 
 bot.on("polling_error", (error) => {
-  console.error("❌ Polling error:", error);
+  console.error("❌ Polling error:", error.message);
+});
+
+// Prevent process crashes from unhandled promise rejections
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("⚠️ Unhandled Promise Rejection:", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("⚠️ Uncaught Exception:", error.message);
+  // Don't exit — keep the process alive
 });
 
 // Handle graceful shutdown
@@ -79,7 +105,7 @@ process.on("SIGTERM", async () => {
 // ============ STARTUP ============
 
 console.log("╔════════════════════════════════════════╗");
-console.log("║   🤖 Telegram Bot Absensi v2.0       ║");
+console.log("║   🤖 Telegram Bot Absensi v2.1       ║");
 console.log("╚════════════════════════════════════════╝");
 console.log("");
 console.log("✓ Bot sedang dijalankan...");
@@ -96,3 +122,4 @@ startConsumer().then(() => {
   console.log("🔄 Tekan Ctrl+C untuk menghentikan bot");
   console.log("");
 });
+

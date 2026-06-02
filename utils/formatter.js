@@ -4,9 +4,13 @@ export class MessageFormatter {
   static formatLoginSuccess(userData) {
     return (
       `✅ *Login Berhasil*\n\n` +
-      `👤 Nama: ${userData.gelar_depan || ""} ${userData.full_name} ${
-        userData.gelar_belakang || ""
-      }`.trim() +
+      `👤 Nama: ${[
+        userData.gelar_depan,
+        userData.full_name,
+        userData.gelar_belakang,
+      ]
+        .filter(Boolean)
+        .join(" ")}` +
       `\n📋 NIP: ${userData.nip_pegawai}` +
       `\n🆔 IDF: ${userData.idf}` +
       `\n📞 No. Telp: ${userData.no_telp || "-"}` +
@@ -86,6 +90,22 @@ export class MessageFormatter {
     return `❌ *Gagal Kirim Absen*\n\n${error}`;
   }
 
+  static formatJadwalList(schedules) {
+    if (!schedules || schedules.length === 0) {
+      return "📋 *Daftar Jadwal Absen*\n\nBelum ada jadwal absen yang berjalan.";
+    }
+
+    let message = "📋 *Daftar Jadwal Absen*\n\n";
+    schedules.forEach((s, index) => {
+      const statusText = s.status === 0 ? "Masuk" : s.status === 1 ? "Keluar" : "Lainnya";
+      message +=
+        `${index + 1}. 📅 ${s.dateStr} 🕐 ${s.timeStr} WIB\n` +
+        `   📟 Mesin: ${s.fpId} | 📊 Status: ${statusText}\n\n`;
+    });
+
+    return message;
+  }
+
   static formatHelp() {
     return (
       `📚 *Daftar Perintah Bot*\n\n` +
@@ -96,12 +116,14 @@ export class MessageFormatter {
       `   Logout dari sistem\n\n` +
       `3️⃣ */mesin*\n` +
       `   Lihat daftar mesin presensi\n\n` +
-      `4️⃣ */absen* \`YYYY-MM-DD HH:mm:ss /fp-X /st-Y\`\n` +
+      `4️⃣ */jadwal*\n` +
+      `   Lihat daftar jadwal absen yang belum dijalankan\n\n` +
+      `5️⃣ */absen* \`YYYY-MM-DD HH:mm:ss /fp-X /st-Y\`\n` +
       `   Contoh: /absen 2025-12-08 07:58:01 /fp-3 /st-0\n` +
       `   Jadwalkan absensi otomatis\n` +
       `   • fp = ID mesin presensi\n` +
       `   • st = Status (0=Masuk, 1=Keluar)\n\n` +
-      `5️⃣ */help*\n` +
+      `6️⃣ */help*\n` +
       `   Tampilkan pesan bantuan ini`
     );
   }
