@@ -103,14 +103,18 @@ export class MessageFormatter {
         `   📟 Mesin: ${s.fpId} | 📊 Status: ${statusText}\n\n`;
     });
 
+    message += `💡 Untuk menghapus jadwal, gunakan:\n`;
+    message += `/hapus <nomor_urut>\n`;
+    message += `Contoh: /hapus 1`;
+
     return message;
   }
 
   static formatHelp() {
     return (
       `📚 *Daftar Perintah Bot*\n\n` +
-      `1️⃣ */login* \`YYYY-MM-DD password\`\n` +
-      `   Contoh: /login 2002-06-11 password123\n` +
+      `1️⃣ */login* \`<no_telp>\`\n` +
+      `   Contoh: /login 081234567890\n` +
       `   Login ke sistem absensi\n\n` +
       `2️⃣ */logout*\n` +
       `   Logout dari sistem\n\n` +
@@ -123,7 +127,11 @@ export class MessageFormatter {
       `   Jadwalkan absensi otomatis\n` +
       `   • fp = ID mesin presensi\n` +
       `   • st = Status (0=Masuk, 1=Keluar)\n\n` +
-      `6️⃣ */help*\n` +
+      `6️⃣ */hapus* \`<nomor_urut>\`\n` +
+      `   Contoh: /hapus 1\n` +
+      `   Hapus jadwal absen yang belum dijalankan\n` +
+      `   • Lihat nomor urut di /jadwal\n\n` +
+      `7️⃣ */help*\n` +
       `   Tampilkan pesan bantuan ini`
     );
   }

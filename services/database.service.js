@@ -67,6 +67,34 @@ class DatabaseService {
     });
   }
 
+  removeScheduleByChatId(chatId, scheduleId) {
+    return new Promise((resolve, reject) => {
+      const query = `DELETE FROM schedules WHERE id = ? AND chat_id = ?`;
+      this.db.run(query, [scheduleId, chatId], function (err) {
+        if (err) {
+          console.error("Gagal menghapus jadwal:", err.message);
+          resolve(false);
+        } else {
+          resolve(this.changes > 0);
+        }
+      });
+    });
+  }
+
+  getScheduleById(scheduleId) {
+    return new Promise((resolve, reject) => {
+      const query = `SELECT * FROM schedules WHERE id = ?`;
+      this.db.get(query, [scheduleId], (err, row) => {
+        if (err) {
+          console.error("Gagal mengambil jadwal:", err.message);
+          resolve(null);
+        } else {
+          resolve(row || null);
+        }
+      });
+    });
+  }
+
   getSchedulesByChatId(chatId) {
     return new Promise((resolve, reject) => {
       const query = `SELECT * FROM schedules WHERE chat_id = ? ORDER BY date_str ASC, time_str ASC`;

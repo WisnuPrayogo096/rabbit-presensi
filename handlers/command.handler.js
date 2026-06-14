@@ -27,13 +27,12 @@ export class CommandHandler {
    */
   async handleLogin(msg, match) {
     const chatId = msg.chat.id;
-    const tgl_lahir = match[1];
-    const password = match[2];
+    const no_telp = match[1].trim();
 
     await this._sendMessage(chatId, "🔐 Sedang mencoba login...");
 
     try {
-      const userData = await ApiService.login(tgl_lahir, password);
+      const userData = await ApiService.login(no_telp);
       this.sessionService.set(chatId, userData);
 
       await this._sendMessage(
@@ -92,7 +91,7 @@ export class CommandHandler {
     if (!session?.token) {
       await this._sendMessage(
         chatId,
-        "❌ Anda belum login. Silakan login terlebih dahulu:\n`/login YYYY-MM-DD password`",
+        "❌ Anda belum login. Silakan login terlebih dahulu:\n`/login <no_telp>`",
         { parse_mode: "Markdown" }
       );
       return;
@@ -123,7 +122,7 @@ export class CommandHandler {
     if (!session?.token) {
       await this._sendMessage(
         chatId,
-        "❌ Anda belum login. Silakan login terlebih dahulu:\n`/login YYYY-MM-DD password`",
+        "❌ Anda belum login. Silakan login terlebih dahulu:\n`/login <no_telp>`",
         { parse_mode: "Markdown" }
       );
       return;
@@ -202,7 +201,7 @@ export class CommandHandler {
     if (!session?.token) {
       await this._sendMessage(
         chatId,
-        "❌ Anda belum login. Silakan login terlebih dahulu:\n`/login YYYY-MM-DD password`",
+        "❌ Anda belum login. Silakan login terlebih dahulu:\n`/login <no_telp>`",
         { parse_mode: "Markdown" }
       );
       return;
@@ -214,6 +213,72 @@ export class CommandHandler {
       MessageFormatter.formatJadwalList(schedules),
       { parse_mode: "Markdown" }
     );
+  }
+
+  /**
+   * Handler untuk command /hapus
+   */
+  async handleHapus(msg, match) {
+    const chatId = msg.chat.id;
+    const session = this.sessionService.get(chatId);
+
+    if (!session?.token) {
+      await this._sendMessage(
+        chatId,
+        "❌ Anda belum login. Silakan login terlebih dahulu:\n`/login <no_telp>`",
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    const nomorUrut = parseInt(match[1], 10);
+
+    if (isNaN(nomorUrut) || nomorUrut < 1) {
+      await this._sendMessage(
+        chatId,
+        "⚠️ Format salah. Gunakan: `/hapus <nomor_urut>`\nContoh: `/hapus 1`\n\nLihat daftar jadwal dengan /jadwal",
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    const schedules = await dbService.getSchedulesByChatId(chatId);
+
+    if (!schedules || schedules.length === 0) {
+      await this._sendMessage(
+        chatId,
+        "📋 Tidak ada jadwal absen yang bisa dihapus."
+      );
+      return;
+    }
+
+    if (nomorUrut > schedules.length) {
+      await this._sendMessage(
+        chatId,
+        `⚠️ Nomor urut tidak valid. Hanya ada ${schedules.length} jadwal.\nLihat daftar jadwal dengan /jadwal`
+      );
+      return;
+    }
+
+    const scheduleToDelete = schedules[nomorUrut - 1];
+    const deleted = await dbService.removeScheduleByChatId(chatId, scheduleToDelete.id);
+
+    if (deleted) {
+      const statusText = scheduleToDelete.status === 0 ? "Masuk" : scheduleToDelete.status === 1 ? "Keluar" : "Lainnya";
+      await this._sendMessage(
+        chatId,
+        `✅ *Jadwal Berhasil Dihapus*\n\n` +
+          `📅 ${scheduleToDelete.dateStr} 🕐 ${scheduleToDelete.timeStr} WIB\n` +
+          `📟 Mesin: ${scheduleToDelete.fpId} | 📊 Status: ${statusText}\n\n` +
+          `Absensi otomatis untuk jadwal ini telah dibatalkan.`,
+        { parse_mode: "Markdown" }
+      );
+    } else {
+      await this._sendMessage(
+        chatId,
+        "❌ Gagal menghapus jadwal. Jadwal mungkin sudah dieksekusi atau tidak ditemukan."
+      );
+    }
   }
 
   /**
@@ -231,6 +296,13 @@ export class CommandHandler {
    */
   async processAbsenTask(task) {
     const { chatId, token, requestBody, scheduleId } = task;
+
+    // Check if schedule was cancelled by user before execution
+    const existingSchedule = await dbService.getScheduleById(scheduleId);
+    if (!existingSchedule) {
+      console.log(`Schedule ${scheduleId} sudah dihapus/dibatalkan, skip eksekusi.`);
+      return;
+    }
 
     if (!token) {
       await this._sendMessage(

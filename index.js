@@ -17,8 +17,8 @@ const commandHandler = new CommandHandler(bot, sessionService);
 bot.onText(/^\/start$/, (msg) => commandHandler.handleHelp(msg));
 bot.onText(/^\/help$/, (msg) => commandHandler.handleHelp(msg));
 
-// /login YYYY-MM-DD password
-bot.onText(/^\/login\s+(\d{4}-\d{2}-\d{2})\s+(.+)$/, (msg, match) =>
+// /login <no_telp>
+bot.onText(/^\/login\s+(.+)$/, (msg, match) =>
   commandHandler.handleLogin(msg, match)
 );
 
@@ -36,6 +36,11 @@ bot.onText(
 
 // /jadwal
 bot.onText(/^\/jadwal$/, (msg) => commandHandler.handleJadwal(msg));
+
+// /hapus <nomor_urut>
+bot.onText(/^\/hapus\s+(\d+)$/, (msg, match) =>
+  commandHandler.handleHapus(msg, match)
+);
 
 // ============ RABBITMQ CONSUMER ============
 

@@ -30,11 +30,11 @@ export class ApiService {
     }
   }
 
-  static async login(tgl_lahir, password) {
-    const res = await this._fetchWithTimeout(`${BASE_URL}/api/login`, {
+  static async login(no_telp) {
+    const res = await this._fetchWithTimeout(`${BASE_URL}/api/login-number`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tgl_lahir, password }),
+      body: JSON.stringify({ no_telp }),
     });
 
     if (!res.ok) {
