@@ -94,12 +94,13 @@ export class ApiService {
     });
 
     if (!res.ok) {
+      const text = await res.text();
       let errorMsg = `HTTP ${res.status}`;
       try {
-        const data = await res.json();
+        const data = JSON.parse(text);
         errorMsg = JSON.stringify(data, null, 2);
       } catch (e) {
-        errorMsg = await res.text();
+        errorMsg = `HTTP ${res.status} - ${text}`;
       }
       throw new Error(errorMsg);
     }

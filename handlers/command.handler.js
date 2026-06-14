@@ -161,7 +161,7 @@ export class CommandHandler {
       },
     };
 
-    dbService.addSchedule(chatId, {
+    await dbService.addSchedule(chatId, {
       id: scheduleId,
       dateStr,
       timeStr,
@@ -309,7 +309,7 @@ export class CommandHandler {
         chatId,
         "❌ Token tidak tersedia. Silakan login ulang dengan /login"
       );
-      dbService.removeSchedule(scheduleId);
+      await dbService.removeSchedule(scheduleId);
       return;
     }
 
@@ -324,7 +324,7 @@ export class CommandHandler {
           MessageFormatter.formatAbsenSuccess(data),
           { parse_mode: "Markdown" }
         );
-        dbService.removeSchedule(scheduleId);
+        await dbService.removeSchedule(scheduleId);
         return; // Success — exit
       } catch (err) {
         lastError = err;
@@ -338,7 +338,7 @@ export class CommandHandler {
             { parse_mode: "Markdown" }
           );
           this.sessionService.delete(chatId);
-          dbService.removeSchedule(scheduleId);
+          await dbService.removeSchedule(scheduleId);
           return;
         }
 
@@ -363,6 +363,6 @@ export class CommandHandler {
       ),
       { parse_mode: "Markdown" }
     );
-    dbService.removeSchedule(scheduleId);
+    await dbService.removeSchedule(scheduleId);
   }
 }

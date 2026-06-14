@@ -104,8 +104,8 @@ export class MessageFormatter {
     });
 
     message += `💡 Untuk menghapus jadwal, gunakan:\n`;
-    message += `/hapus <nomor_urut>\n`;
-    message += `Contoh: /hapus 1`;
+    message += "`/hapus` nomor urut\n";
+    message += "Contoh: `/hapus 1`";
 
     return message;
   }

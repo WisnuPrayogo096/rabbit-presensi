@@ -36,34 +36,44 @@ class DatabaseService {
   }
 
   addSchedule(chatId, schedule) {
-    const query = `
-      INSERT INTO schedules (id, chat_id, date_str, time_str, fp_id, status)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `;
-    this.db.run(
-      query,
-      [
-        schedule.id,
-        chatId,
-        schedule.dateStr,
-        schedule.timeStr,
-        schedule.fpId,
-        schedule.status,
-      ],
-      (err) => {
-        if (err) {
-          console.error("Gagal menyimpan jadwal ke database:", err.message);
+    return new Promise((resolve, reject) => {
+      const query = `
+        INSERT INTO schedules (id, chat_id, date_str, time_str, fp_id, status)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `;
+      this.db.run(
+        query,
+        [
+          schedule.id,
+          chatId,
+          schedule.dateStr,
+          schedule.timeStr,
+          schedule.fpId,
+          schedule.status,
+        ],
+        (err) => {
+          if (err) {
+            console.error("Gagal menyimpan jadwal ke database:", err.message);
+            resolve(false);
+          } else {
+            resolve(true);
+          }
         }
-      }
-    );
+      );
+    });
   }
 
   removeSchedule(scheduleId) {
-    const query = `DELETE FROM schedules WHERE id = ?`;
-    this.db.run(query, [scheduleId], (err) => {
-      if (err) {
-        console.error("Gagal menghapus jadwal dari database:", err.message);
-      }
+    return new Promise((resolve, reject) => {
+      const query = `DELETE FROM schedules WHERE id = ?`;
+      this.db.run(query, [scheduleId], function (err) {
+        if (err) {
+          console.error("Gagal menghapus jadwal dari database:", err.message);
+          resolve(false);
+        } else {
+          resolve(this.changes > 0);
+        }
+      });
     });
   }
 

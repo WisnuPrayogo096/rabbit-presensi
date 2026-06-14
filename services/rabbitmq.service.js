@@ -53,8 +53,11 @@ export class RabbitMQService {
         `✓ Task dijadwalkan: type=${task.type}, delay=${delaySeconds}s`
       );
 
-      setTimeout(() => {
-        try { connection.close(); } catch (_) {}
+      setTimeout(async () => {
+        try {
+          await channel.close();
+          await connection.close();
+        } catch (_) {}
       }, 500);
       return true;
     } catch (error) {
